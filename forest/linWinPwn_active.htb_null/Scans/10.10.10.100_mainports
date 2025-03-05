@@ -1,0 +1,2 @@
+# Nmap 7.95SVN scan initiated Mon Mar  3 05:18:10 2025 as: /usr/local/bin/nmap -n -Pn -p 135,445,389,636,88,3389,5985 -sT -T5 --open -oG /root/tools/linWinPwn/forest/linWinPwn_active.htb_null/Scans/10.10.10.100_mainports 10.10.10.100
+# Nmap done at Mon Mar  3 05:18:12 2025 -- 1 IP address (1 host up) scanned in 1.52 seconds
