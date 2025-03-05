@@ -1,2 +1,0 @@
-[1;36m[i] Running command: /opt/lwp-scripts/windapsearch -d active.htb --dc 10.10.10.100  -m users --full[0m
-^C^C^C^C^C^C^C^C^C^C^C^C^C^C^C^C^C^C^C^C^C^C[31mFATAL[0m[2025-03-03T05:35:58+02:00] unable to read LDAP response packet: read tcp 10.10.14.30:54614->10.10.10.100:389: read: no route to host  [31mpackage[0m=windapsearch

