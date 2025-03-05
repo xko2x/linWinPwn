@@ -48,33 +48,33 @@ install_tools() {
     pipx ensurepath
     #pipx install git+https://github.com/deadjakk/ldapdomaindump --force #LDAP Channel Binding
     #/home/$(whoami)/.local/share/pipx/venvs/ldapdomaindump/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
-    pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
-    pipx install git+https://github.com/Pennyw0rth/NetExec.git --force
-    pipx install git+https://github.com/fortra/impacket.git --force
-    pipx install git+https://github.com/dirkjanm/adidnsdump.git --force
-    pipx install git+https://github.com/zer1t0/certi.git --force
-    pipx install git+https://github.com/ly4k/Certipy.git --force
+    pipx install --python python3.11 git+https://github.com/dirkjanm/ldapdomaindump.git --force
+    pipx install --python python3.11 git+https://github.com/Pennyw0rth/NetExec.git --force
+    pipx install --python python3.11 git+https://github.com/fortra/impacket.git --force
+    pipx install --python python3.11 git+https://github.com/dirkjanm/adidnsdump.git --force
+    pipx install --python python3.11 git+https://github.com/zer1t0/certi.git --force
+    pipx install --python python3.11 git+https://github.com/ly4k/Certipy.git --force
     #pipx install git+https://github.com/zimedev/certipy-merged --force #Certipy with more features
     #/home/$(whoami)/.local/share/pipx/venvs/certipy-ad/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     #pipx install git+https://github.com/deadjakk/BloodHound.py --force #LDAP Channel Binding
     #/home/$(whoami)/.local/share/pipx/venvs/bloodhound/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
-    pipx install git+https://github.com/dirkjanm/Bloodhound.py --force
-    pipx install "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" --force --suffix '_ce'
-    pipx install git+https://github.com/franc-pentest/ldeep.git --force
-    pipx install git+https://github.com/garrettfoster13/pre2k.git --force
-    pipx install git+https://github.com/zblurx/certsync.git --force
-    pipx install hekatomb --force
-    pipx install git+https://github.com/blacklanternsecurity/MANSPIDER --force
-    pipx install git+https://github.com/p0dalirius/Coercer --force
-    pipx install git+https://github.com/CravateRouge/bloodyAD --force
-    pipx install git+https://github.com/login-securite/DonPAPI --force
-    pipx install git+https://github.com/p0dalirius/RDWAtool --force
-    pipx install git+https://github.com/almandin/krbjack --force
-    pipx install git+https://github.com/CompassSecurity/mssqlrelay.git --force
-    pipx install git+https://github.com/CobblePot59/ADcheck.git --force
-    pipx install --force --pip-args="--use-deprecated=legacy-resolver" "git+https://github.com/ajm4n/adPEAS#egg=adPEAS"
-    pipx install git+https://github.com/oppsec/breads.git --force
-    pipx install git+https://github.com/p0dalirius/smbclient-ng --force
+    pipx install --python python3.11 git+https://github.com/dirkjanm/Bloodhound.py --force
+    pipx install --python python3.11 "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" --force --suffix '_ce'
+    pipx install --python python3.11 git+https://github.com/franc-pentest/ldeep.git --force
+    pipx install --python python3.11 git+https://github.com/garrettfoster13/pre2k.git --force
+    pipx install --python python3.11 git+https://github.com/zblurx/certsync.git --force
+    pipx install --python python3.11 hekatomb --force
+    pipx install --python python3.11 git+https://github.com/blacklanternsecurity/MANSPIDER --force
+    pipx install --python python3.11 git+https://github.com/p0dalirius/Coercer --force
+    pipx install --python python3.11 git+https://github.com/CravateRouge/bloodyAD --force
+    pipx install --python python3.11 git+https://github.com/login-securite/DonPAPI --force
+    pipx install --python python3.11 git+https://github.com/p0dalirius/RDWAtool --force
+    pipx install --python python3.11 git+https://github.com/almandin/krbjack --force
+    pipx install --python python3.11 git+https://github.com/CompassSecurity/mssqlrelay.git --force
+    pipx install --python python3.11 git+https://github.com/CobblePot59/ADcheck.git --force
+    pipx install --python python3.11 --force --pip-args="--use-deprecated=legacy-resolver" "git+https://github.com/ajm4n/adPEAS#egg=adPEAS"
+    pipx install --python python3.11 git+https://github.com/oppsec/breads.git --force
+    pipx install --python python3.11 git+https://github.com/p0dalirius/smbclient-ng --force
     pipx install --python python3.11 git+https://github.com/ScorpionesLabs/MSSqlPwner.git --force
     pipx install --python python3.11 git+https://github.com/xforcered/SoaPy --force
     echo -e ""
@@ -83,7 +83,7 @@ install_tools() {
     sudo mkdir -p ${scripts_dir}/ldapper
     sudo mkdir -p ${scripts_dir}/Responder
     sudo chown -R "$(whoami)":"$(whoami)" ${scripts_dir}
-    python3 -m venv "${scripts_dir}/.venv"
+    python3.11 -m venv "${scripts_dir}/.venv"
     source "${scripts_dir}/.venv/bin/activate"
     pip3 install PyYAML alive-progress xlsxwriter sectools typer colorama impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome --upgrade
     deactivate
